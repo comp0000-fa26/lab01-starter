@@ -16,6 +16,7 @@ import os
 import sys
 import time
 from typing import Callable, List
+import requests
 
 try:
     from dotenv import load_dotenv
@@ -25,6 +26,10 @@ except ImportError:
     pass
 
 PROMPT = "In one short sentence, define the term 'agentic AI' for a CS class."
+api_key = "Use your own API key"
+base_url = "https://genai.hkbu.edu.hk/api/v0/rest"
+model_name = "gpt-4.1"
+api_version = "2024-12-01-preview"
 
 
 def percentile_linear(sorted_vals: List[float], p: float) -> float:
@@ -43,29 +48,28 @@ def percentile_linear(sorted_vals: List[float], p: float) -> float:
     return d0 + d1
 
 
-def bench_anthropic() -> float:
-    import anthropic
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    t0 = time.perf_counter()
-    client.messages.create(
-        model="claude-3-5-haiku-20241022",
-        max_tokens=128,
-        messages=[{"role": "user", "content": PROMPT}],
+def bench_hkbuapi() -> float:
+    system_message = (
+        "You are a friendly helper! Talk to the user like they are 3 years old. "
+        "Use very simple words, be super excited and happy, and explain everything in a fun way "
+        "that a little kid would understand!"
     )
-    return time.perf_counter() - t0
-
-
-def bench_openai() -> float:
-    from openai import OpenAI
-
-    client = OpenAI()
     t0 = time.perf_counter()
-    client.chat.completions.create(
-        model="gpt-4o-mini",
-        max_tokens=128,
-        messages=[{"role": "user", "content": PROMPT}],
-    )
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": PROMPT},
+    ]
+
+    url = f"{base_url}/deployments/{model_name}/chat/completions?api-version={api_version}"
+    headers = {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+        "api-key": api_key,
+    }
+    payload = {"messages": messages, "temperature": 0.7, "max_tokens": 150, "top_p": 1, "stream": False}
+    response = requests.post(url, json=payload, headers=headers, timeout=300.0)
+    response.raise_for_status()
     return time.perf_counter() - t0
 
 
@@ -73,7 +77,7 @@ def bench_ollama() -> float:
     import httpx
 
     base = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-    model = os.environ.get("OLLAMA_MODEL", "llama3.2")
+    model = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
     t0 = time.perf_counter()
     r = httpx.post(
         f"{base}/api/generate",
@@ -102,20 +106,19 @@ def main() -> int:
     rows: list[dict[str, object]] = []
 
     backends: list[tuple[str, Callable[[], float]]] = []
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        backends.append(("anthropic_claude_haiku", bench_anthropic))
-    else:
-        print("Skipping Anthropic: ANTHROPIC_API_KEY not set", file=sys.stderr)
-
-    if os.environ.get("OPENAI_API_KEY"):
-        backends.append(("openai_gpt4o_mini", bench_openai))
-    else:
-        print("Skipping OpenAI: OPENAI_API_KEY not set", file=sys.stderr)
+    
 
     backends.append(
         (
-            f"ollama_{os.environ.get('OLLAMA_MODEL', 'llama3.2')}",
+            f"ollama_{os.environ.get('OLLAMA_MODEL', 'llama3.2:3b')}",
             bench_ollama,
+        )
+    )
+
+    backends.append(
+        (
+            f"HKBU_API_gpt-4.1",
+            bench_hkbuapi,
         )
     )
 
