@@ -1,0 +1,7 @@
+backend,run_index,latency_ms,prompt_sha256
+ollama_llama3.2:3b,1,3128.813,fixed_prompt_v1
+ollama_llama3.2:3b,2,318.742,fixed_prompt_v1
+ollama_llama3.2:3b,3,327.585,fixed_prompt_v1
+HKBU_API_gpt-4.1,1,1444.252,fixed_prompt_v1
+HKBU_API_gpt-4.1,2,1370.878,fixed_prompt_v1
+HKBU_API_gpt-4.1,3,1323.765,fixed_prompt_v1
